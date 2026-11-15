@@ -15,7 +15,7 @@ Browser (OpenWebif page)                       Windows PC
   recording, "nas" mode: http://<nas>:8080/<path>/<name>.ts          (optional movie_http.py)
 ```
 
-Why? Depending on the version, OpenWebif's own play buttons either hand out `.m3u`
+Why? Depending on the browser and version, OpenWebif's own play buttons either hand out `.m3u`
 playlists to be opened by hand, or start a built-in browser player — which on our setup
 did not play recordings at all. The **TS** buttons skip the browser-side playback entirely
 and open the stream in VLC directly. Both recording sources support HTTP Range requests,
