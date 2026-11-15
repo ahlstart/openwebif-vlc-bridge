@@ -37,8 +37,9 @@ mainly helps when the box has a slow link or is busy recording.
   (the included rc.d script is for FreeBSD)
 - For use away from home: any VPN or route that lets the PC reach the box (and the NAS)
 
-The userscript relies on the markup of OpenWebif's web pages (`stream.m3u?ref=` links and
-`playRecording(...)` handlers); a different OpenWebif version may need its selectors adjusted.
+Tested with **OpenWebif 2.2.2**. The userscript relies on the markup of OpenWebif's web
+pages (`stream.m3u?ref=` links and `playRecording(...)` handlers); a different OpenWebif
+version may need its selectors adjusted.
 
 ## Components
 
