@@ -1,0 +1,28 @@
+#!/bin/sh
+# PROVIDE: movie_http
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="movie_http"
+rcvar="movie_http_enable"
+
+load_rc_config $name
+: ${movie_http_enable:="NO"}
+: ${movie_http_user:="nobody"}
+: ${movie_http_dir:="/mnt/movie"}
+: ${movie_http_port:="8080"}
+: ${movie_http_env:="LANG=C.UTF-8"}
+
+pidfile="/var/run/${name}.pid"
+command="/usr/sbin/daemon"
+command_args="-r -P ${pidfile} -T ${name} /usr/local/bin/python3 /usr/local/libexec/movie_http.py ${movie_http_port} ${movie_http_dir}"
+
+start_precmd="${name}_prestart"
+movie_http_prestart()
+{
+    install -o ${movie_http_user} -m 644 /dev/null ${pidfile}
+}
+
+run_rc_command "$1"
