@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenWebif TS Buttons (LIVE, clipboard)
-// @version      0.3
-// @description  Adds TS buttons to OpenWebif: live channels and NAS recordings open in VLC via VLCHelper
+// @version      0.4
+// @description  Adds TS buttons to OpenWebif: live channels and recordings open in VLC via VLCHelper
 // @license      MIT
 // @match        *://192.168.1.97/*
 // @grant        GM_setClipboard
@@ -12,9 +12,16 @@
 
     // ---- Configuration: change these to match your network (and the @match line above) ----
     const BOX_STREAM = "http://192.168.1.97:8001/";          // Enigma2 live stream port
-    const NAS_ROOT   = "http://192.168.1.4:8080/";           // movie_http.py on the NAS, serving its movie dir
-    const BOX_MOUNT  = "/media/net/NAS/";                    // the same directory as mounted on the box
     const VLC_HELPER = "http://localhost:8124/vlc?url=";     // VLCHelper.py
+
+    // Where recordings are played from:
+    //   "box" - through OpenWebif's own /file endpoint of the box whose page you are on.
+    //           Nothing to install; works for every recording (NAS share or internal disk).
+    //   "nas" - straight from movie_http.py on the NAS. Faster, and the data does not pass
+    //           through the box; only recordings under BOX_MOUNT get a button.
+    const RECORDING_SOURCE = "box";
+    const NAS_ROOT   = "http://192.168.1.4:8080/";           // "nas": movie_http.py, serving its movie dir
+    const BOX_MOUNT  = "/media/net/NAS/";                    // "nas": the same directory as mounted on the box
 
     // Encode each path segment exactly as given. No Unicode normalization: names on the NAS
     // are a mix of NFC and NFD, and OpenWebif reports the exact on-disk form.
@@ -66,12 +73,24 @@
             const fileMatch = el.getAttribute("onclick").match(/playRecording\('([^']+)'/);
             if (!fileMatch) return;
 
-            // "<service ref>:/media/net/NAS/leffat/x.ts" -> NAS_ROOT + "leffat/x.ts"
-            const fullPath = decodeURIComponent(fileMatch[1]);
-            const at = fullPath.indexOf(BOX_MOUNT);
-            if (at < 0) return;   // not on the NAS (e.g. local HDD of the PVR)
-            addButton(el, NAS_ROOT + encodePath(fullPath.slice(at + BOX_MOUNT.length)));
+            const url = recordingURL(decodeURIComponent(fileMatch[1]));
+            if (url) addButton(el, url);
         });
+    }
+
+    // "<service ref>:/media/net/NAS/leffat/x.ts" ->
+    //   box: <this box>/file?file=/media/net/NAS/leffat/x.ts
+    //   nas: NAS_ROOT + "leffat/x.ts"   (null if the file is not under BOX_MOUNT)
+    function recordingURL(fullPath) {
+        if (RECORDING_SOURCE === "box") {
+            const at = fullPath.indexOf(":/");
+            const path = at >= 0 ? fullPath.slice(at + 1) : fullPath;
+            if (!path.startsWith("/")) return null;
+            return location.origin + "/file?file=" + encodePath(path);
+        }
+        const at = fullPath.indexOf(BOX_MOUNT);
+        if (at < 0) return null;   // not on the NAS (e.g. internal disk of the box)
+        return NAS_ROOT + encodePath(fullPath.slice(at + BOX_MOUNT.length));
     }
 
     addTSButtons();

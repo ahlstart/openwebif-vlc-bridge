@@ -1,31 +1,39 @@
 # openwebif-vlc-bridge
 
-Play Enigma2 live channels and recordings in VLC on a Windows PC, straight from the
-OpenWebif page of the receiver — with seeking, even for recordings stored on a NAS.
+Play Enigma2 live channels and recordings in VLC on a Windows PC with one click, straight
+from the OpenWebif page of the receiver — with seeking.
 
 ```
-Browser (OpenWebif page)                       Windows PC                 NAS
-┌───────────────────────────┐  GET /vlc?url=  ┌──────────────┐          ┌────────────────────┐
-│ Tampermonkey userscript   │ ──────────────▶ │ VLCHelper.py │          │ movie_http.py      │
-│ adds "TS" buttons         │  localhost:8124 │ starts VLC   │          │ HTTP + Range (206) │
-└───────────────────────────┘                 └──────┬───────┘          └─────────▲──────────┘
-                                                     │ VLC plays                  │
-             live:       http://<box>:8001/<service ref>  (Enigma2 stream port)   │
-             recording:  http://<nas>:8080/<path>.ts  ────────────────────────────┘
+Browser (OpenWebif page)                       Windows PC
+┌───────────────────────────┐  GET /vlc?url=  ┌──────────────┐
+│ Tampermonkey userscript   │ ──────────────▶ │ VLCHelper.py │ ──▶ VLC plays one of:
+│ adds "TS" buttons         │  localhost:8124 │ starts VLC   │
+└───────────────────────────┘                 └──────────────┘
+
+  live channel:          http://<box>:8001/<service ref>             (Enigma2 stream port)
+  recording, "box" mode: http://<box>/file?file=/media/.../<name>.ts (OpenWebif itself)
+  recording, "nas" mode: http://<nas>:8080/<path>/<name>.ts          (optional movie_http.py)
 ```
 
-Why not just use OpenWebif's own links? The `.m3u` playlists OpenWebif hands out need
-manual opening, and recordings streamed through the box itself can't be seeked reliably.
-Serving the recording directly from the NAS with HTTP Range support lets VLC jump
-anywhere in a multi-gigabyte `.ts` file instantly.
+OpenWebif's own play links hand out `.m3u` playlists that have to be saved and opened by
+hand. The **TS** buttons open the stream in VLC directly. Both recording sources support
+HTTP Range requests, so VLC can jump anywhere in a multi-gigabyte `.ts` file.
+
+**Which recording source?** `"box"` (default) needs nothing beyond the userscript and
+VLCHelper, and covers recordings on the box's own disk too. If the recordings are on a NAS,
+`"nas"` serves them straight from there: in one measurement on a gigabit LAN, 112 MB/s
+directly from the NAS versus 39 MB/s (wired box) and 10 MB/s (box behind a Wi-Fi extender)
+through the box. An HD recording needs only about 3 MB/s, so `"box"` is usually fine; `"nas"`
+mainly helps when the box has a slow link or is busy recording.
 
 ## Requirements
 
 - An Enigma2 receiver (any brand) with the **OpenWebif** plugin
-- Recordings on a network share that a server can serve over HTTP (here: FreeBSD with Python 3)
 - A Windows PC with **VLC** and Python 3.10+
 - A browser with **Tampermonkey** (or another userscript manager)
-- For use away from home: any VPN or route that lets the PC reach the box and the NAS
+- Optional, for `"nas"` mode: recordings on a NAS share, and Python 3 on the NAS
+  (the included rc.d script is for FreeBSD)
+- For use away from home: any VPN or route that lets the PC reach the box (and the NAS)
 
 The userscript relies on the markup of OpenWebif's web pages (`stream.m3u?ref=` links and
 `playRecording(...)` handlers); a different OpenWebif version may need its selectors adjusted.
@@ -34,13 +42,15 @@ The userscript relies on the markup of OpenWebif's web pages (`stream.m3u?ref=` 
 
 | Directory | Runs on | What it does |
 |---|---|---|
-| [`userscript/`](userscript/) | browser (Tampermonkey) | Adds a **TS** button next to every live channel and every recording on the NAS. Click → the URL goes to VLCHelper; if the helper isn't running, the URL is copied to the clipboard instead. |
+| [`userscript/`](userscript/) | browser (Tampermonkey) | Adds a **TS** button next to every live channel and recording. Click → the URL goes to VLCHelper; if the helper isn't running, the URL is copied to the clipboard instead. |
 | [`vlchelper/`](vlchelper/) | Windows PC | Tiny HTTP server on `localhost:8124`. `GET /vlc?url=<stream>` launches VLC with that URL and brings the VLC window to the foreground. |
-| [`nas/`](nas/) | NAS (FreeBSD) | `movie_http.py`: a static file server for the recordings directory with HTTP Range / `206 Partial Content` support (needed for seeking) and `.ts` served as `video/mp2t`; plus an rc.d script to run it as a service. |
+| [`nas/`](nas/) | NAS (FreeBSD) — optional | Only for `"nas"` mode. `movie_http.py`: a static file server for the recordings directory with HTTP Range / `206 Partial Content` support (needed for seeking) and `.ts` served as `video/mp2t`; plus an rc.d script to run it as a service. |
 
 ## Setup
 
-### 1. NAS (FreeBSD)
+### 1. NAS (FreeBSD) — only for `"nas"` mode
+
+Skip this step with the default `RECORDING_SOURCE = "box"`.
 
 The box must record onto a share of the NAS (e.g. CIFS/NFS mounted on the box as
 `/media/net/NAS/`). On the NAS, the same directory is served over HTTP:
@@ -85,14 +95,19 @@ browser call `localhost`, so the helper refuses anything else.
 
 | Setting | Meaning |
 |---|---|
-| `@match` | address of your Enigma2 box's OpenWebif |
+| `@match` | address of your Enigma2 box's OpenWebif (add one `@match` line per box) |
 | `BOX_STREAM` | the box's stream port, normally `http://<box>:8001/` |
-| `NAS_ROOT` | where `movie_http.py` serves the recordings directory |
-| `BOX_MOUNT` | the same directory as the box sees it (prefix of the recording paths in OpenWebif) |
 | `VLC_HELPER` | VLCHelper's address, normally unchanged |
+| `RECORDING_SOURCE` | `"box"` (default) or `"nas"`, see above |
+| `NAS_ROOT` | `"nas"` only: where `movie_http.py` serves the recordings directory |
+| `BOX_MOUNT` | `"nas"` only: the same directory as the box sees it (prefix of the recording paths in OpenWebif) |
 
-Recordings whose path does not start with `BOX_MOUNT` (e.g. on the box's internal disk)
-get no button.
+In `"box"` mode the recording is fetched from the box whose OpenWebif page you clicked on.
+In `"nas"` mode, recordings whose path does not start with `BOX_MOUNT` (e.g. on the box's
+internal disk) get no button.
+
+If OpenWebif has authentication enabled, VLC will ask for the credentials when it opens
+a `"box"` recording.
 
 ## Notes
 
