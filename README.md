@@ -19,6 +19,17 @@ manual opening, and recordings streamed through the box itself can't be seeked r
 Serving the recording directly from the NAS with HTTP Range support lets VLC jump
 anywhere in a multi-gigabyte `.ts` file instantly.
 
+## Requirements
+
+- An Enigma2 receiver (any brand) with the **OpenWebif** plugin
+- Recordings on a network share that a server can serve over HTTP (here: FreeBSD with Python 3)
+- A Windows PC with **VLC** and Python 3.10+
+- A browser with **Tampermonkey** (or another userscript manager)
+- For use away from home: any VPN or route that lets the PC reach the box and the NAS
+
+The userscript relies on the markup of OpenWebif's web pages (`stream.m3u?ref=` links and
+`playRecording(...)` handlers); a different OpenWebif version may need its selectors adjusted.
+
 ## Components
 
 | Directory | Runs on | What it does |
@@ -90,7 +101,8 @@ get no button.
   normalizing, so both forms work.
 - **VLC settings:** with *Allow only one instance* and *Enqueue items* enabled, new streams
   are added to the playlist of the already running VLC; VLCHelper still raises its window.
-- **Remote use:** works over a VPN (e.g. WireGuard) as long as the PC reaches the box and NAS.
+- **Remote use:** nothing here is VPN-specific; the PC just has to reach the box and the NAS.
+  Seeking works well remotely too, since VLC only fetches the byte ranges it plays.
 
 ## License
 
